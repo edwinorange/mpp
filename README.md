@@ -42,6 +42,26 @@ pnpm run check:sdk-drift # Validate SDK reference pages against mppx exports
 pnpm run preview  # Preview production build
 ```
 
+### Test trusted agent payment
+
+`/api/ping/paid/agent` requires registered Web Bot Auth and TAP payment-intent
+signatures before issuing its Tempo payment Challenge. Production deployments
+need `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` for shared,
+atomic replay protection.
+
+Run the client with pre-seeded Ed25519 private JWKs and a funded Tempo account:
+
+```bash
+DEMO_WBA_PRIVATE_JWK_PATH=/secure/wba-key.json \
+DEMO_TAP_PRIVATE_JWK_PATH=/secure/tap-key.json \
+DEMO_TEMPO_PRIVATE_KEY_PATH=/secure/tempo-key.json \
+pnpm demo:trusted-agent
+```
+
+The script prints the initial `402`, fresh WBA and TAP signature nonces on the
+paid retry, the final response, and its `Payment-Receipt`. It reads private keys
+locally and never sends them to either public key registry.
+
 ### Publish a blog post
 
 1. Copy [`templates/blog-post.mdx`](templates/blog-post.mdx) to `src/pages/blog/<slug>.mdx`.
