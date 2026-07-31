@@ -5,16 +5,14 @@ import {
   createTrustedAgentPaymentHandler,
 } from "../../../../../trusted-agent-payment.server";
 
-const paymentHandler = mppx.charge({
-  amount: "0.1",
-  currency: import.meta.env.VITE_DEFAULT_CURRENCY!,
-  description: "Trusted agent ping endpoint access",
-  expires: Expires.minutes(5),
-});
-
 const handler = createTrustedAgentPaymentHandler(
   async (request) => {
-    const result = await paymentHandler(request);
+    const result = await mppx.charge({
+      amount: "0.1",
+      currency: import.meta.env.VITE_DEFAULT_CURRENCY!,
+      description: "Trusted agent ping endpoint access",
+      expires: Expires.minutes(5),
+    })(request);
     if (result.status === 402) return result.challenge;
     return result.withReceipt(
       new Response("tm! trusted agent identity and payment verified"),
