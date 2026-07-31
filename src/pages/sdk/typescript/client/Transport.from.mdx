@@ -9,8 +9,8 @@ import { Challenge } from 'mppx'
 import { Transport } from 'mppx/client'
 
 const http = Transport.from<RequestInit, Response>({
-  getChallenges(response) {
-    return Challenge.fromResponseList(response)
+  getChallenge(response) {
+    return Challenge.fromResponse(response)
   },
   isPaymentRequired(response) {
     return response.status === 402
