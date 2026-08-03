@@ -74,6 +74,32 @@ describe("verifyTrustedAgent", () => {
     });
   });
 
+  it("requires TAP payment intent", async () => {
+    const request = await Attestation.Client.composeSigners(
+      webBotAuthSigner(),
+      Tap.Client.signer({
+        intent: Tap.Constants.intents.browse,
+        key: tapKeys.privateKey,
+        keyId: tapKeyId,
+      }),
+    ).sign(new Request("https://mpp.dev/api/ping/paid/agent"));
+
+    const result = await verifyTrustedAgent(request);
+    expect(result).toBeInstanceOf(Response);
+    expect((result as Response).status).toBe(403);
+  });
+
+  it("requires TAP and Web Bot Auth to share a request nonce", async () => {
+    let request = await webBotAuthSigner().sign(
+      new Request("https://mpp.dev/api/ping/paid/agent"),
+    );
+    request = await tapSigner().sign(request);
+
+    const result = await verifyTrustedAgent(request);
+    expect(result).toBeInstanceOf(Response);
+    expect((result as Response).status).toBe(403);
+  });
+
   it("rejects a replay of a previously accepted request", async () => {
     const request = await Attestation.Client.composeSigners(
       webBotAuthSigner(),
@@ -127,9 +153,10 @@ async function keyPair(): Promise<CryptoKeyPair> {
 }
 
 async function publicJwk(key: CryptoKey, kid: string) {
+  const jwk = await crypto.subtle.exportKey("jwk", key);
+  delete jwk.alg;
   return {
-    ...(await crypto.subtle.exportKey("jwk", key)),
-    alg: "EdDSA",
+    ...jwk,
     key_ops: ["verify"],
     kid,
     use: "sig",

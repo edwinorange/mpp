@@ -16,12 +16,12 @@ const tapRegistryUrl =
 const nonceStore = Attestation.NonceStore.memory();
 
 const verifiers = {
-  [Tap.Constants.protocol]: Tap.Server.verifier({
+  tap: Tap.Server.verifier({
     keyResolver: (parameters) =>
       resolvePublicKey(tapRegistryUrl, "application/json", parameters),
     nonceStore,
   }),
-  [WebBotAuth.Constants.protocol]: WebBotAuth.Server.verifier({
+  webBotAuth: WebBotAuth.Server.verifier({
     keyResolver: ({ signatureAgent, ...parameters }) => {
       if (signatureAgent !== webBotAuthOrigin) return undefined;
       return resolvePublicKey(
@@ -30,6 +30,7 @@ const verifiers = {
         parameters,
       );
     },
+    maxAge: 60,
     nonceStore,
   }),
 };
@@ -58,25 +59,16 @@ export async function verifyTrustedAgent(
   }
 
   if (
-    Object.values(verification.outcomes).some(
-      (outcome) => outcome.status === "invalid",
-    )
+    Object.values(verification).some((outcome) => outcome.status === "invalid")
   )
     return new Response("Request attestation is invalid.", { status: 401 });
 
-  const tap = verification.evidence.find(
-    (evidence): evidence is Tap.Evidence =>
-      evidence.protocol === Tap.Constants.protocol,
-  );
-  const webBotAuth = verification.evidence.find(
-    (evidence): evidence is WebBotAuth.Evidence =>
-      evidence.protocol === WebBotAuth.Constants.protocol,
-  );
+  const { tap, webBotAuth } = verification;
 
   if (
-    !tap ||
+    tap.status !== "verified" ||
     tap.value.intent !== Tap.Constants.intents.payment ||
-    !webBotAuth ||
+    webBotAuth.status !== "verified" ||
     webBotAuth.value.signatureAgent !== webBotAuthOrigin ||
     tap.value.nonce !== webBotAuth.value.nonce
   )
