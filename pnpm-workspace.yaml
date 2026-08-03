@@ -29,6 +29,7 @@ overrides:
   dompurify: 3.4.11
   esbuild: 0.28.1
   js-yaml: 4.2.0
+  "mppx@0.8.15>ox": 0.14.33
   qs: 6.15.2
   undici: 6.27.0
   ws: 8.21.0
