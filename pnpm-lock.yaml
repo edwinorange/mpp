@@ -42,8 +42,8 @@ importers:
         specifier: ^11.15.0
         version: 11.15.0
       mppx:
-        specifier: https://pkg.pr.new/mppx@ac6515321031f736c006a6c397100d35082e2eb5
-        version: https://pkg.pr.new/mppx@ac6515321031f736c006a6c397100d35082e2eb5(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(express@5.2.1)(hono@4.12.27)(typescript@6.0.3)(viem@2.54.0(typescript@6.0.3)(zod@4.4.3))
+        specifier: https://pkg.pr.new/mppx@661377133815f17907eb2e2e6c22c1f775a7d7a2
+        version: https://pkg.pr.new/mppx@661377133815f17907eb2e2e6c22c1f775a7d7a2(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(express@5.2.1)(hono@4.12.27)(typescript@6.0.3)(viem@2.54.0(typescript@6.0.3)(zod@4.4.3))
       nuqs:
         specifier: 2.9.1
         version: 2.9.1(react@19.2.7)
@@ -4111,8 +4111,8 @@ packages:
       hono:
         optional: true
 
-  mppx@https://pkg.pr.new/mppx@ac6515321031f736c006a6c397100d35082e2eb5:
-    resolution: {tarball: https://pkg.pr.new/mppx@ac6515321031f736c006a6c397100d35082e2eb5}
+  mppx@https://pkg.pr.new/mppx@661377133815f17907eb2e2e6c22c1f775a7d7a2:
+    resolution: {tarball: https://pkg.pr.new/mppx@661377133815f17907eb2e2e6c22c1f775a7d7a2}
     version: 0.8.15
     hasBin: true
     peerDependencies:
@@ -9712,7 +9712,7 @@ snapshots:
     transitivePeerDependencies:
       - typescript
 
-  mppx@https://pkg.pr.new/mppx@ac6515321031f736c006a6c397100d35082e2eb5(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(express@5.2.1)(hono@4.12.27)(typescript@6.0.3)(viem@2.54.0(typescript@6.0.3)(zod@4.4.3)):
+  mppx@https://pkg.pr.new/mppx@661377133815f17907eb2e2e6c22c1f775a7d7a2(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(express@5.2.1)(hono@4.12.27)(typescript@6.0.3)(viem@2.54.0(typescript@6.0.3)(zod@4.4.3)):
     dependencies:
       '@stripe/stripe-js': 9.12.0
       eventsource-parser: 3.1.0
