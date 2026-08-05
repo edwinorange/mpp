@@ -5,13 +5,264 @@ imageDescription: "Identify clients across requests without extra auth"
 
 import { MermaidDiagram } from '../../components/MermaidDiagram'
 
-# Identity [Verify clients without payment]
+# Identity [Verify agents and clients]
 
-Every MPP Credential carries a cryptographic identity—the client's public key in the `source` field. Your server gets a verified identity on every request, whether the client pays or not. This page covers how to use that identity for access control, gating, and multi-step workflows.
+Use request attestations to verify which automated client sent a request, then use MPP Credentials to verify the identity that authorized a payment.
 
 ## Overview
 
-The Credential already proves the client controls a specific public key. The `source` field is the same regardless of the payment amount, which means you can use the MPP flow purely for identity when payment isn't needed.
+`mppx` supports two complementary identity layers:
+
+| Layer | Verifies | Use it for |
+|---|---|---|
+| [**Request attestation**](#request-attestation) | The automated client or agent provider that signed an HTTP request | Bot recognition, allowlists, rate limits, and agent-specific policy |
+| [**MPP Credential**](#mpp-credential-identity) | The key in the Credential's `source` field | Payment authorization, ownership, and identity-only MPP flows |
+
+An attestation doesn't authorize a payment or prove the end user's identity. Apply your own policy after verifying the agent, and verify the MPP Credential separately when the request requires payment.
+
+## Request attestation
+
+Request attestation uses [RFC 9421 HTTP Message Signatures](https://www.rfc-editor.org/rfc/rfc9421) to bind an agent identity to an HTTP request. `mppx` supports Ed25519 and RSA-PSS SHA-512 signatures through two profiles:
+
+| Profile | Trust source | Signed request data | Recommended use |
+|---|---|---|---|
+| [**Web Bot Auth**](#use-web-bot-auth) | Public key associated with a trusted HTTPS directory | Authority and `Signature-Agent` | General bot and agent identification |
+| [**Trusted Agent Protocol**](#use-trusted-agent-protocol) | Public key provisioned by a trusted agent provider | Authority and path | Commerce agents with explicit browse or payment intent |
+
+The client attests the initial request and every automatic MPP retry. Each attempt gets a fresh nonce and timestamp. The server verifies the attestation before it issues a Challenge or accepts a Credential.
+
+<MermaidDiagram chart={`sequenceDiagram
+    participant Agent
+    participant Server
+    Agent->>Server: Signed request
+    Note over Server: Verify request attestation
+    Server-->>Agent: 402 + Challenge
+    Note over Agent: Create Credential and fresh attestation
+    Agent->>Server: Signed retry + Credential
+    Note over Server: Verify attestation and Credential
+    Server-->>Agent: 200 + Receipt
+`} />
+
+### Use Web Bot Auth
+
+[Web Bot Auth](https://datatracker.ietf.org/doc/html/draft-meunier-web-bot-auth-architecture) identifies automated HTTP clients through a signed `Signature-Agent` header. Use the HTTPS-directory profile when the agent publishes its keys through a directory origin that your server trusts.
+
+Configure the signer on the MPP client. `keyId` must be the RFC 7638 SHA-256 thumbprint of the public key registered for the bot.
+
+```ts twoslash [client.ts]
+import * as WebBotAuth from 'mppx/attestation/web-bot-auth'
+import { Mppx, tempo } from 'mppx/client'
+import type { Account } from 'viem'
+
+declare const account: Account
+declare const botPrivateKey: CryptoKey
+
+const botIdentity = {
+  keyId: 'poqkLGiymh_W0uP6PZFw-dvez3QJT5SolqXBCW38r0U',
+  signatureAgent: 'https://bot.example',
+} as const
+
+const client = Mppx.create({
+  // [!code hl:start]
+  attestation: {
+    webBotAuth: WebBotAuth.Client.signer({
+      key: botPrivateKey,
+      keyId: botIdentity.keyId,
+      signatureAgent: botIdentity.signatureAgent,
+    }),
+  },
+  // [!code hl:end]
+  methods: [tempo({ account })],
+  polyfill: false,
+})
+
+const response = await client.fetch('https://api.example.com/resource')
+console.log(response.status)
+// @log: 200
+```
+
+Configure the verifier on the MPP server. The resolver receives the signed directory origin and key ID. Apply your trust policy before you return a key.
+
+```ts twoslash [server.ts]
+import * as Attestation from 'mppx/attestation'
+import * as WebBotAuth from 'mppx/attestation/web-bot-auth'
+import { Mppx, tempo } from 'mppx/server'
+
+declare const botPublicKey: CryptoKey
+
+const botIdentity = {
+  keyId: 'poqkLGiymh_W0uP6PZFw-dvez3QJT5SolqXBCW38r0U',
+  signatureAgent: 'https://bot.example',
+} as const
+
+const payment = Mppx.create({
+  // [!code hl:start]
+  attestation: {
+    webBotAuth: WebBotAuth.Server.verifier({
+      keyResolver({ keyId, signatureAgent }) {
+        if (
+          keyId !== botIdentity.keyId ||
+          signatureAgent !== botIdentity.signatureAgent
+        ) return undefined
+        return botPublicKey
+      },
+      maxAge: 60,
+      nonceStore: Attestation.NonceStore.memory(),
+    }),
+  },
+  // [!code hl:end]
+  methods: [tempo.charge()],
+})
+
+export const handler = payment.charge({ amount: '0.05' })
+```
+
+:::warning[Trust the directory before fetching]
+The verifier doesn't fetch the caller-provided `Signature-Agent` URL. Allowlist the origin before a directory lookup, prevent redirects to untrusted origins, and return an extractable public key so `mppx` can verify its JWK thumbprint.
+:::
+
+### Use Trusted Agent Protocol
+
+[Trusted Agent Protocol](https://developer.visa.com/capabilities/trusted-agent-protocol/trusted-agent-protocol-specifications/) (TAP) identifies an agent that a merchant or payment network trusts. TAP signatures include an intent: `browse` for discovery and `payment` for payment-related requests.
+
+Use `payment` for an MPP client that accesses paid routes. The signer uses an eight-minute lifetime by default, which is TAP's maximum.
+
+```ts twoslash [client.ts]
+import * as Tap from 'mppx/attestation/tap'
+import { Mppx, tempo } from 'mppx/client'
+import type { Account } from 'viem'
+
+declare const account: Account
+declare const agentPrivateKey: CryptoKey
+
+const client = Mppx.create({
+  // [!code hl:start]
+  attestation: {
+    tap: Tap.Client.signer({
+      intent: 'payment',
+      key: agentPrivateKey,
+      keyId: 'agent-provider-key-1',
+    }),
+  },
+  // [!code hl:end]
+  methods: [tempo({ account })],
+  polyfill: false,
+})
+
+const response = await client.fetch('https://merchant.example/checkout')
+console.log(response.status)
+// @log: 200
+```
+
+On the server, resolve `keyId` only from agent providers you trust. The verifier checks the signature, request authority and path, lifetime, intent tag, and nonce.
+
+```ts twoslash [server.ts]
+import * as Attestation from 'mppx/attestation'
+import * as Tap from 'mppx/attestation/tap'
+import { Mppx, tempo } from 'mppx/server'
+
+declare const agentPublicKey: CryptoKey
+
+const payment = Mppx.create({
+  // [!code hl:start]
+  attestation: {
+    tap: Tap.Server.verifier({
+      keyResolver({ keyId }) {
+        if (keyId !== 'agent-provider-key-1') return undefined
+        return agentPublicKey
+      },
+      nonceStore: Attestation.NonceStore.memory(),
+    }),
+  },
+  // [!code hl:end]
+  methods: [tempo.charge()],
+})
+
+export const handler = payment.charge({ amount: '12.50' })
+```
+
+`Mppx.create` treats an invalid attestation as `401`, and treats an absent attestation or unresolved key as `403`. Every verifier in the server's `attestation` map must return `verified`. Configure both Web Bot Auth and TAP only when each request must carry both signatures.
+
+### Use the framework directly
+
+Outside `Mppx.create`, combine signers with one shared signing context and wrap any Fetch implementation. Each call to the wrapped Fetch creates a new context.
+
+```ts twoslash [client.ts]
+import * as Attestation from 'mppx/attestation'
+
+declare const tapSigner: Attestation.Signer<'tap'>
+declare const webBotAuthSigner: Attestation.Signer<'web-bot-auth'>
+
+const signer = Attestation.Client.composeSigners(
+  tapSigner,
+  webBotAuthSigner,
+)
+const fetch = Attestation.Client.wrapFetch(globalThis.fetch, signer)
+
+await fetch('https://api.example.com/resource')
+```
+
+Use the lower-level framework when application policy needs the verified key ID, TAP intent, or Web Bot Auth directory. Each verifier returns `absent`, `invalid`, `unverified`, or `verified`.
+
+```ts twoslash [server.ts]
+import * as Attestation from 'mppx/attestation'
+import * as Tap from 'mppx/attestation/tap'
+import { Mppx, tempo } from 'mppx/server'
+
+declare const agentPublicKey: CryptoKey
+
+const nonceStore = Attestation.NonceStore.memory()
+const tap = Tap.Server.verifier({
+  keyResolver({ keyId }) {
+    if (keyId !== 'agent-provider-key-1') return undefined
+    return agentPublicKey
+  },
+  nonceStore,
+})
+const payment = Mppx.create({ methods: [tempo.charge()] })
+const charge = payment.charge({ amount: '12.50' })
+
+export async function handler(request: Request) {
+  const result = await Attestation.Server.verify(request, { tap })
+  const verification = result.tap
+
+  if (verification.status !== 'verified') {
+    return new Response('Trusted agent required', { status: 403 })
+  }
+
+  console.log(verification.value.intent)
+  // @log: payment
+  const paymentResult = await charge(request)
+  if (paymentResult.status === 402) return paymentResult.challenge
+  return paymentResult.withReceipt(new Response('Accepted'))
+}
+```
+
+Don't pass the same verifier to `Mppx.create` in this pattern. Verification consumes the nonce, so verifying the same request twice correctly reports a replay.
+
+### Store nonces
+
+`Attestation.NonceStore.memory()` is limited to one long-lived server process. In a multi-instance deployment, provide a shared store whose `consume` operation atomically inserts a nonce only when absent and retains it until `expires`.
+
+```ts [nonce-store.ts]
+import type { NonceStore } from 'mppx/attestation'
+
+export const nonceStore: NonceStore.Store = {
+  async consume(key, expires) {
+    const inserted = await nonceDatabase.insertIfAbsent({
+      expires,
+      key,
+    })
+    return !inserted
+  },
+}
+```
+
+Adapt the call to your storage client. `consume` returns `true` when the nonce was already present and unexpired.
+
+## MPP Credential identity
+
+The Credential proves the client controls a specific public key. Its `source` field remains the same regardless of the payment amount, so you can associate paid and identity-only requests with one key.
 
 Extract the client's identity from any verified request using `Credential.fromRequest`:
 
@@ -26,17 +277,7 @@ const clientIdentity = credential.source
 // @log: "did:pkh:eip155:4217:0x1234..."
 ```
 
-Backends key workloads, sessions, and access control on this public key. The payment flow is orthogonal to identity, and can be used in combination with other methods.
-
-### Methods
-
-| Method | Payment methods | Description |
-|--------|-----------------|-------------|
-| [**Zero-dollar auth**](#zero-dollar-auth) | Tempo, Lightning, Solana, Custom | Proves key ownership with no funds transfer | 
-
-:::info[More methods coming]
-Additional identity methods are in development. Check back for updates.
-:::
+Backends key workloads, sessions, and access control on this public key. Payment and request attestation remain separate from Credential identity.
 
 ## Zero-dollar auth
 

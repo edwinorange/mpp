@@ -113,6 +113,12 @@ console.log(receipt.status)
 
 ## Parameters
 
+### attestation (optional)
+
+- **Type:** `Readonly<Record<string, Attestation.Verifier>>`
+
+Request-attestation verifiers required before an HTTP handler issues a Challenge or accepts a Credential. Invalid attestations return `401`; absent or unverified attestations return `403`. Every configured verifier must succeed. See [Identity](/advanced/identity#request-attestation).
+
 ### methods
 
 - **Type:** `readonly Method.Server[]`
