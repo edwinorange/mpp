@@ -876,8 +876,8 @@ export const services: ServiceDef[] = [
       // Auth
       {
         route: "POST /v1/auth/mpp-sign-up",
-        desc: "Bootstrap workspace — returns JWT and workspace ID (free)",
-        amount: "0",
+        desc: "Bootstrap workspace — returns JWT and workspace ID",
+        amount: "1000",
         unitType: "request",
       },
       { route: "GET /v1/auth/whoami", desc: "Current user and workspace info" },
