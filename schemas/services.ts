@@ -11235,11 +11235,11 @@ export const services: ServiceDef[] = [
     url: "https://api.getemboss.ai",
     serviceUrl: "https://api.getemboss.ai",
     description:
-      "Turn flat PDF forms into fillable forms and fill them from data or documents, paid per call.",
+      "Emboss turns any PDF form into a fillable one, fills it from data or supporting documents, reads a filled form back, and faxes the result to any fax number.",
     icon: "https://getemboss.ai/icon",
     categories: ["data", "ai"],
     integration: "third-party",
-    tags: ["pdf", "forms", "form-filling", "documents", "agents"],
+    tags: ["pdf", "forms", "form-filling", "fax", "documents", "agents"],
     status: "active",
     docs: {
       homepage: "https://getemboss.ai/docs/pay-per-call/mpp",
@@ -11264,7 +11264,7 @@ export const services: ServiceDef[] = [
         desc: "Fill a PDF form from supporting context documents. Input: a PDF file plus one or more context files and/or context_text/context_urls.",
         dynamic: true,
         amountHint:
-          "$0.07 to $12.82 by page count and context size (exact price in the 402 challenge)",
+          "$0.08 to $12.93 by page count and context size (exact price in the 402 challenge)",
         unitType: "request",
       },
       {
@@ -11273,6 +11273,21 @@ export const services: ServiceDef[] = [
         dynamic: true,
         amountHint:
           "$0.07 to $1.02 by page count (exact price in the 402 challenge)",
+        unitType: "request",
+      },
+      {
+        route: "POST /pay/read",
+        desc: "Read a filled PDF form back into labelled values. Input: a PDF file.",
+        dynamic: true,
+        amountHint: "$0.01 per request (exact price in the 402 challenge)",
+        unitType: "request",
+      },
+      {
+        route: "POST /pay/fax",
+        desc: "Fax a PDF to a destination number. Input: a PDF file and `to` in E.164 form.",
+        dynamic: true,
+        amountHint:
+          "$0.03 per page, up to $3.00 (exact price in the 402 challenge); card payments have a $0.50 minimum",
         unitType: "request",
       },
     ],
